@@ -614,7 +614,10 @@ type LocalAvailability struct {
 	// its own wording or remedy. On Windows: "whp_missing" (the Windows
 	// Hypervisor Platform feature is not installed), "hypervisor_off" (it is,
 	// but the hypervisor is not running: a restart is pending or firmware
-	// virtualization is off) or "policy_blocked" (creating a partition
-	// failed). Empty when there is nothing finer to say.
+	// virtualization is off), "policy_blocked" (creating a partition
+	// failed) or "state_dir_unusable" (AF_UNIX sockets do not work in the
+	// engine's state directory: the process inherited an MSIX package's AppData
+	// redirection, or the directory is too deep; set SMOLVM_DATA_DIR to a short
+	// directory outside AppData). Empty when there is nothing finer to say.
 	Cause string
 }

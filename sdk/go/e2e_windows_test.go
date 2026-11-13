@@ -25,8 +25,9 @@ import (
 //	crane pull --platform linux/amd64 alpine:3.20 alpine-3.20.tar
 //
 // A process launched from an MSIX-packaged app inherits its AppData
-// redirection, under which AF_UNIX sockets in %LOCALAPPDATA% cannot connect
-// and every machine fails to become ready; run these from a plain terminal.
+// redirection, under which AF_UNIX sockets in %LOCALAPPDATA% cannot connect;
+// run these from a plain terminal, or point SMOLVM_DATA_DIR at a short
+// directory outside AppData.
 
 func TestE2EWindowsHostProbe(t *testing.T) {
 	requireE2E(t)

@@ -645,14 +645,23 @@ fn check_host() -> Value {
         return unavailable(e);
     }
     #[cfg(windows)]
-    return match whp::probe() {
-        Ok(()) => json!({ "available": true }),
-        Err(failure) => {
-            let mut reply = unavailable(smolvm::Error::HypervisorUnavailable(failure.reason));
-            reply["cause"] = json!(failure.cause);
-            reply
-        }
-    };
+    {
+        let failure = whp::probe().err().or_else(|| {
+            // 4. AF_UNIX sockets work in the state directory (not under an
+            //    MSIX AppData redirection, not too deep); SMOLVM_DATA_DIR moves it.
+            smolvm::platform::windows::check_state_dir()
+                .err()
+                .map(|reason| whp::Failure { cause: "state_dir_unusable", reason })
+        });
+        return match failure {
+            None => json!({ "available": true }),
+            Some(failure) => {
+                let mut reply = unavailable(smolvm::Error::HypervisorUnavailable(failure.reason));
+                reply["cause"] = json!(failure.cause);
+                reply
+            }
+        };
+    }
     #[cfg(not(windows))]
     match smolvm::vm::backend::LibkrunBackend::new() {
         Ok(backend) if smolvm::vm::VmBackend::is_available(&backend) => {
@@ -1028,8 +1037,9 @@ mod whp {
     };
 
     pub struct Failure {
-        /// Stable and machine-readable: `whp_missing`, `hypervisor_off` or
-        /// `policy_blocked`.
+        /// Stable and machine-readable: `whp_missing`, `hypervisor_off`,
+        /// `policy_blocked` or (from the state-directory check)
+        /// `state_dir_unusable`.
         pub cause: &'static str,
         pub reason: String,
     }

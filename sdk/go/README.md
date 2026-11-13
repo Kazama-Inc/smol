@@ -54,6 +54,7 @@ is the same runtime the npm and PyPI packages ship.
 | `SMOLMACHINES_CACHE_DIR` | Cache location (default `~/Library/Caches/smolmachines` or `~/.cache/smolmachines`), shared with the Rust SDK. |
 | `SMOLMACHINES_NO_DOWNLOAD=1` | Fail instead of downloading, for hosts that may not reach the network at run time. |
 | `SMOLMACHINES_RUNTIME_DIR` | Use an unpacked runtime bundle instead, for air-gapped hosts and local builds. |
+| `SMOLVM_DATA_DIR` | Windows: keep the engine's state under this directory instead of `%LOCALAPPDATA%`. Needed when the process inherits an MSIX package's AppData redirection (AF_UNIX sockets fail there; `CheckLocal` reports `Cause: "state_dir_unusable"`). Keep it short: AF_UNIX paths are limited to 108 bytes. |
 
 `smol.CheckLocal()` reports whether this host can run local machines, and the
 error code a local `Create` would fail with if not, without booting one.

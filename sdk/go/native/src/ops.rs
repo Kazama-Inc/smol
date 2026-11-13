@@ -689,6 +689,7 @@ fn create(c: MachineConfig) -> CallResult {
         mounts.push(mount);
     }
     let resources = vm_resources(&c.resources)?;
+    let image = c.image.map(|img| host_image_reference(&img)).transpose()?;
     let spec = MachineSpec {
         name: c.name,
         mounts,
@@ -698,7 +699,7 @@ fn create(c: MachineConfig) -> CallResult {
             .map(|p| PortMapping::new(p.host, p.guest))
             .collect(),
         resources,
-        image: c.image,
+        image,
         persistent: c.persistent,
         forkable: c.forkable,
         detached: c.detached,
@@ -1002,4 +1003,27 @@ fn stream_next(a: Id) -> CallResult {
         Ok(ev) => Ok(event_value(ev)),
         Err(_) => Ok(Value::Null),
     }
+}
+
+/// What the engine should record for a machine's image, resolved on the host
+/// the way the CLI's `--image` is: a registry reference passes through for the
+/// guest to pull, while a local `docker save` archive (optionally gzipped) or an
+/// unpacked rootfs directory is staged on the host and becomes a `local:<hash>`
+/// / `local-dir:<path>` reference served to the guest over virtiofs, so a
+/// machine with no network can still boot it. Later starts re-resolve the
+/// recorded reference to the same staged source.
+fn host_image_reference(image: &str) -> Result<String, CallError> {
+    use smolvm::data::image_source::{classify, resolve, ArchiveInput, ImageSource, ResolvedImage};
+    let source = classify(image);
+    // `-` is the CLI's "read the archive from stdin"; an embedder's stdin is
+    // not an image.
+    if source == ImageSource::Archive(ArchiveInput::Stdin) {
+        return Err(CallError::config(
+            "image \"-\" (an archive on stdin) is a CLI form; pass the archive's path".to_string(),
+        ));
+    }
+    Ok(match resolve(source)? {
+        ResolvedImage::Registry(reference) => reference,
+        ResolvedImage::Local { reference, .. } => reference,
+    })
 }

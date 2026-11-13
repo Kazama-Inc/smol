@@ -421,3 +421,28 @@ func TestE2EPackAndStream(t *testing.T) {
 	}
 	t.Logf("packed %s (%d bytes)", path, st.Size())
 }
+
+// TestE2EBlockPrivate needs a private address the machine could otherwise
+// reach, such as a port the host listens on in its LAN:
+// SMOL_E2E_PRIVATE_TARGET=192.168.1.7:7890.
+func TestE2EBlockPrivate(t *testing.T) {
+	requireE2E(t)
+	target := os.Getenv("SMOL_E2E_PRIVATE_TARGET")
+	host, port, err := net.SplitHostPort(target)
+	if err != nil {
+		t.Skip("set SMOL_E2E_PRIVATE_TARGET to a reachable private ip:port")
+	}
+	probe := []string{"sh", "-c", fmt.Sprintf("nc -z -w 3 %s %s && echo open || echo blocked", host, port)}
+	for _, c := range []struct {
+		block bool
+		want  string
+	}{{false, "open"}, {true, "blocked"}} {
+		m := newE2EMachine(t, MachineConfig{Resources: ResourceSpec{
+			CPUs: 1, MemoryMB: 512, AllowCIDRs: []string{host + "/32"}, BlockPrivate: c.block,
+		}})
+		r, err := m.Exec(context.Background(), probe, nil)
+		if err != nil || strings.TrimSpace(r.Stdout) != c.want {
+			t.Fatalf("BlockPrivate=%v: %q, %v; want %s", c.block, r.Stdout, err, c.want)
+		}
+	}
+}

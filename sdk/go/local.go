@@ -706,18 +706,19 @@ type nativeMount struct {
 }
 
 type nativeResources struct {
-	CPUs           int      `json:"cpus,omitempty"`
-	MemoryMiB      int      `json:"memory_mib,omitempty"`
-	Network        *bool    `json:"network,omitempty"`
-	AllowedCIDRs   []string `json:"allowed_cidrs,omitempty"`
-	AllowedHosts   []string `json:"allowed_hosts,omitempty"`
-	StorageGiB     int      `json:"storage_gib,omitempty"`
-	OverlayGiB     int      `json:"overlay_gib,omitempty"`
-	GPU            bool     `json:"gpu,omitempty"`
-	GPUVRAMMiB     int      `json:"gpu_vram_mib,omitempty"`
-	CUDA           bool     `json:"cuda,omitempty"`
-	NetworkBackend string   `json:"network_backend,omitempty"`
-	DiskDurability string   `json:"disk_durability,omitempty"`
+	CPUs           int       `json:"cpus,omitempty"`
+	MemoryMiB      int       `json:"memory_mib,omitempty"`
+	Network        *bool     `json:"network,omitempty"`
+	AllowedCIDRs   []string  `json:"allowed_cidrs,omitempty"`
+	AllowedHosts   []string  `json:"allowed_hosts,omitempty"`
+	BlockPrivate   *[]string `json:"block_private,omitempty"`
+	StorageGiB     int       `json:"storage_gib,omitempty"`
+	OverlayGiB     int       `json:"overlay_gib,omitempty"`
+	GPU            bool      `json:"gpu,omitempty"`
+	GPUVRAMMiB     int       `json:"gpu_vram_mib,omitempty"`
+	CUDA           bool      `json:"cuda,omitempty"`
+	NetworkBackend string    `json:"network_backend,omitempty"`
+	DiskDurability string    `json:"disk_durability,omitempty"`
 }
 
 type nativeMachineConfig struct {
@@ -757,6 +758,7 @@ func toNativeConfig(name string, cfg MachineConfig) nativeMachineConfig {
 			// enforces both (CIDRs directly, hostnames via its DNS filter).
 			AllowedCIDRs:   r.AllowCIDRs,
 			AllowedHosts:   r.AllowHosts,
+			BlockPrivate:   blockPrivate(r),
 			StorageGiB:     r.StorageGB,
 			OverlayGiB:     r.OverlayGB,
 			GPU:            r.GPU,
@@ -771,6 +773,16 @@ func toNativeConfig(name string, cfg MachineConfig) nativeMachineConfig {
 		Detached:   cfg.Detach,
 		Labels:     cfg.Labels,
 	}
+}
+
+// blockPrivate is the engine's private-range floor: nil when off, else the
+// exceptions it keeps open (an empty list blocks every private range).
+func blockPrivate(r ResourceSpec) *[]string {
+	if !r.BlockPrivate && len(r.AllowPrivate) == 0 {
+		return nil
+	}
+	exceptions := append([]string{}, r.AllowPrivate...)
+	return &exceptions
 }
 
 func createLocal(ctx context.Context, cfg MachineConfig, c ConnectOptions) (transport, error) {

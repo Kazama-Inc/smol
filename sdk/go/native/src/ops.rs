@@ -644,6 +644,16 @@ fn check_host() -> Value {
     if let Err(e) = smolvm::platform::linux::check_kvm_available() {
         return unavailable(e);
     }
+    #[cfg(windows)]
+    return match whp::probe() {
+        Ok(()) => json!({ "available": true }),
+        Err(failure) => {
+            let mut reply = unavailable(smolvm::Error::HypervisorUnavailable(failure.reason));
+            reply["cause"] = json!(failure.cause);
+            reply
+        }
+    };
+    #[cfg(not(windows))]
     match smolvm::vm::backend::LibkrunBackend::new() {
         Ok(backend) if smolvm::vm::VmBackend::is_available(&backend) => {
             json!({ "available": true })
@@ -1001,5 +1011,151 @@ fn stream_next(a: Id) -> CallResult {
         Ok(_) if cancel.is_cancelled() => Ok(Value::Null),
         Ok(ev) => Ok(event_value(ev)),
         Err(_) => Ok(Value::Null),
+    }
+}
+
+/// Windows host probe: is the Windows Hypervisor Platform usable by this
+/// (unelevated) process? Checked the way a VMM uses it, not by reading the
+/// optional-feature state, which can read "disabled" on a host where WHP works
+/// (Hyper-V installed). None of these calls needs elevation or membership of
+/// Hyper-V Administrators.
+#[cfg(windows)]
+mod whp {
+    use std::ffi::c_void;
+    use windows_sys::Win32::Foundation::{FreeLibrary, HMODULE};
+    use windows_sys::Win32::System::LibraryLoader::{
+        GetProcAddress, LoadLibraryExW, LOAD_LIBRARY_SEARCH_SYSTEM32,
+    };
+
+    pub struct Failure {
+        /// Stable and machine-readable: `whp_missing`, `hypervisor_off` or
+        /// `policy_blocked`.
+        pub cause: &'static str,
+        pub reason: String,
+    }
+
+    fn fail(cause: &'static str, reason: impl Into<String>) -> Failure {
+        Failure {
+            cause,
+            reason: reason.into(),
+        }
+    }
+
+    type Partition = *mut c_void;
+    type GetCapability = unsafe extern "system" fn(u32, *mut c_void, u32, *mut u32) -> i32;
+    type CreatePartition = unsafe extern "system" fn(*mut Partition) -> i32;
+    type SetPartitionProperty =
+        unsafe extern "system" fn(Partition, u32, *const c_void, u32) -> i32;
+    type SetupPartition = unsafe extern "system" fn(Partition) -> i32;
+    type DeletePartition = unsafe extern "system" fn(Partition) -> i32;
+
+    const CAPABILITY_HYPERVISOR_PRESENT: u32 = 0x0000_0000;
+    const PROPERTY_PROCESSOR_COUNT: u32 = 0x0000_1fff;
+
+    const ENABLE_HINT: &str = "turn on the \"Windows Hypervisor Platform\" Windows feature \
+        (needs an administrator and a restart)";
+
+    /// 1. WinHvPlatform.dll loads from System32: the feature is installed.
+    /// 2. WHvGetCapability(HypervisorPresent): the hypervisor is running
+    ///    (firmware virtualization on, no restart pending, hypervisorlaunchtype
+    ///    not off).
+    /// 3. A one-vCPU partition can be created, set up and deleted: no policy or
+    ///    other virtualization product is in the way.
+    pub fn probe() -> Result<(), Failure> {
+        let name: Vec<u16> = "WinHvPlatform.dll\0".encode_utf16().collect();
+        // SAFETY: `name` is NUL-terminated and outlives the call.
+        let module = unsafe {
+            LoadLibraryExW(
+                name.as_ptr(),
+                std::ptr::null_mut(),
+                LOAD_LIBRARY_SEARCH_SYSTEM32,
+            )
+        };
+        if module.is_null() {
+            return Err(fail(
+                "whp_missing",
+                format!("WinHvPlatform.dll is not installed; {ENABLE_HINT}"),
+            ));
+        }
+        // SAFETY: `module` is a loaded library handle, freed once below.
+        let result = unsafe { probe_module(module) };
+        unsafe { FreeLibrary(module) };
+        result
+    }
+
+    /// # Safety
+    /// `module` must be a loaded WinHvPlatform.dll.
+    unsafe fn probe_module(module: HMODULE) -> Result<(), Failure> {
+        macro_rules! sym {
+            ($name:literal, $ty:ty) => {
+                match GetProcAddress(module, concat!($name, "\0").as_ptr()) {
+                    // The signatures are the documented ones (winhvplatform.h).
+                    Some(f) => std::mem::transmute::<unsafe extern "system" fn() -> isize, $ty>(f),
+                    None => {
+                        return Err(fail(
+                            "whp_missing",
+                            concat!("WinHvPlatform.dll has no ", $name),
+                        ))
+                    }
+                }
+            };
+        }
+        let get_capability = sym!("WHvGetCapability", GetCapability);
+        let create = sym!("WHvCreatePartition", CreatePartition);
+        let set_property = sym!("WHvSetPartitionProperty", SetPartitionProperty);
+        let setup = sym!("WHvSetupPartition", SetupPartition);
+        let delete = sym!("WHvDeletePartition", DeletePartition);
+
+        let mut present: i32 = 0;
+        let mut written: u32 = 0;
+        let hr = get_capability(
+            CAPABILITY_HYPERVISOR_PRESENT,
+            &mut present as *mut i32 as *mut c_void,
+            std::mem::size_of::<i32>() as u32,
+            &mut written,
+        );
+        if hr < 0 {
+            return Err(fail(
+                "hypervisor_off",
+                format!("WHvGetCapability failed: HRESULT 0x{:08X}", hr as u32),
+            ));
+        }
+        if present == 0 {
+            return Err(fail(
+                "hypervisor_off",
+                "the Windows hypervisor is not running: restart if the Windows Hypervisor \
+                 Platform feature was just turned on, otherwise enable CPU virtualization \
+                 (Intel VT-x / AMD-V) in the firmware",
+            ));
+        }
+
+        let mut partition: Partition = std::ptr::null_mut();
+        let hr = create(&mut partition);
+        if hr < 0 {
+            return Err(fail(
+                "policy_blocked",
+                format!("WHvCreatePartition failed: HRESULT 0x{:08X}", hr as u32),
+            ));
+        }
+        let cpus: u32 = 1;
+        let mut step = "WHvSetPartitionProperty";
+        let mut hr = set_property(
+            partition,
+            PROPERTY_PROCESSOR_COUNT,
+            &cpus as *const u32 as *const c_void,
+            std::mem::size_of::<u32>() as u32,
+        );
+        if hr >= 0 {
+            step = "WHvSetupPartition";
+            hr = setup(partition);
+        }
+        delete(partition);
+        if hr < 0 {
+            return Err(fail(
+                "policy_blocked",
+                format!("{step} failed: HRESULT 0x{:08X}", hr as u32),
+            ));
+        }
+        Ok(())
     }
 }

@@ -48,6 +48,8 @@ func openNative() error {
 	if err := bindNative(assets.library); err != nil {
 		return err
 	}
+	// Before the engine can start any boot helper (see cleanup_windows.go).
+	armProcessReaper()
 	if got := smolABIVersion(); got != abiVersion {
 		return fmt.Errorf("%s implements native ABI %d, this package needs %d; "+
 			"use the runtime bundle released with this SDK version", assets.library, got, abiVersion)

@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -84,26 +85,36 @@ func serveBundle(t *testing.T, archive []byte, sum string) *atomic.Int32 {
 }
 
 func TestBundleDownloadIsVerifiedExtractedAndCached(t *testing.T) {
-	archive := makeTarGz(t, []tarEntry{
+	entries := []tarEntry{
 		{name: "./" + libraryName(), body: "lib"},
-		{name: "./smol-vmm", body: "helper"},
-		{name: "./libkrunfw.5.dylib", body: "fw"},
-		{name: "./libkrunfw.dylib", link: "libkrunfw.5.dylib"},
-	})
+		{name: "./" + helperName(), body: "helper"},
+	}
+	// Windows bundles carry no symlinks (creating one needs Developer Mode or
+	// elevation), and Windows has no execute bit to check.
+	unix := runtime.GOOS != "windows"
+	if unix {
+		entries = append(entries,
+			tarEntry{name: "./libkrunfw.5.dylib", body: "fw"},
+			tarEntry{name: "./libkrunfw.dylib", link: "libkrunfw.5.dylib"})
+	}
+	archive := makeTarGz(t, entries)
 	downloads := serveBundle(t, archive, sha(archive))
 
 	dir, err := ensureBundle()
 	if err != nil {
 		t.Fatalf("ensureBundle: %v", err)
 	}
-	if b, err := os.ReadFile(filepath.Join(dir, "smol-vmm")); err != nil || string(b) != "helper" {
-		t.Fatalf("smol-vmm = %q, %v", b, err)
+	helper := filepath.Join(dir, helperName())
+	if b, err := os.ReadFile(helper); err != nil || string(b) != "helper" {
+		t.Fatalf("%s = %q, %v", helperName(), b, err)
 	}
-	if info, err := os.Stat(filepath.Join(dir, "smol-vmm")); err != nil || info.Mode().Perm()&0o100 == 0 {
-		t.Fatalf("smol-vmm is not executable: %v %v", info, err)
-	}
-	if target, err := os.Readlink(filepath.Join(dir, "libkrunfw.dylib")); err != nil || target != "libkrunfw.5.dylib" {
-		t.Fatalf("symlink = %q, %v", target, err)
+	if unix {
+		if info, err := os.Stat(helper); err != nil || info.Mode().Perm()&0o100 == 0 {
+			t.Fatalf("smol-vmm is not executable: %v %v", info, err)
+		}
+		if target, err := os.Readlink(filepath.Join(dir, "libkrunfw.dylib")); err != nil || target != "libkrunfw.5.dylib" {
+			t.Fatalf("symlink = %q, %v", target, err)
+		}
 	}
 	again, err := ensureBundle()
 	if err != nil || again != dir {
@@ -122,7 +133,7 @@ func TestBundleDownloadIsVerifiedExtractedAndCached(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRuntimeAssets: %v", err)
 	}
-	if assets.library != filepath.Join(dir, libraryName()) || assets.bootBinary != filepath.Join(dir, "smol-vmm") || assets.libDir != dir {
+	if assets.library != filepath.Join(dir, libraryName()) || assets.bootBinary != helper || assets.libDir != dir {
 		t.Fatalf("assets = %+v", assets)
 	}
 }
@@ -148,6 +159,11 @@ func TestBundleEscapingEntriesAreRefused(t *testing.T) {
 		{{name: "ok/../../evil", body: "x"}},
 		{{name: "link", link: "/etc/passwd"}},
 		{{name: "link", link: "../../etc/passwd"}},
+		{{name: "link", link: `\Windows\win.ini`}},
+		{{name: "link", link: `C:\Windows\win.ini`}},
+		{{name: "link", link: "C:win.ini"}},
+		{{name: "link", link: `\\server\share`}},
+		{{name: "link", link: `lib\..\..\evil`}},
 	} {
 		if err := extract(makeTarGz(t, entries), t.TempDir()); err == nil || !strings.Contains(err.Error(), "escapes") {
 			t.Errorf("extract(%+v) = %v; want an escape refusal", entries, err)
@@ -185,5 +201,26 @@ func TestE2EDownloadedBundle(t *testing.T) {
 	r, err := m.Exec(t.Context(), []string{"uname", "-s"}, nil)
 	if err != nil || strings.TrimSpace(r.Stdout) != "Linux" {
 		t.Fatalf("uname = %q, %v", r.Stdout, err)
+	}
+}
+
+func TestLinkEscapes(t *testing.T) {
+	for target, want := range map[string]bool{
+		"libkrunfw.5.dylib": false,
+		"lib/libkrunfw.so":  false,
+		"a..b":              false,
+		"":                  true,
+		"/etc/passwd":       true,
+		"../x":              true,
+		"a/../../x":         true,
+		`a\..\..\x`:         true,
+		`\x`:                true,
+		`\\host\share`:      true,
+		"C:x":               true,
+		`C:\x`:              true,
+	} {
+		if got := linkEscapes(target); got != want {
+			t.Errorf("linkEscapes(%q) = %v; want %v", target, got, want)
+		}
 	}
 }

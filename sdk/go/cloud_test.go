@@ -305,6 +305,7 @@ func isolateCloudEnv(t *testing.T) {
 	t.Helper()
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // what os.UserHomeDir reads on Windows
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
 	t.Setenv("SMOL_CLOUD_TOKEN", "")
 	t.Setenv("SMOL_CLOUD_URL", "")

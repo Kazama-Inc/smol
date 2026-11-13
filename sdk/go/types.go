@@ -597,4 +597,11 @@ type LocalAvailability struct {
 	Code string
 	// Reason explains Code.
 	Reason string
+	// Cause narrows Code down where the engine can tell, so a program can pick
+	// its own wording or remedy. On Windows: "whp_missing" (the Windows
+	// Hypervisor Platform feature is not installed), "hypervisor_off" (it is,
+	// but the hypervisor is not running: a restart is pending or firmware
+	// virtualization is off) or "policy_blocked" (creating a partition
+	// failed). Empty when there is nothing finer to say.
+	Cause string
 }

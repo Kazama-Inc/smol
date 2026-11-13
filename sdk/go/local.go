@@ -788,6 +788,9 @@ func createLocal(ctx context.Context, cfg MachineConfig, c ConnectOptions) (tran
 	if cfg.AutoStop > 0 || cfg.TTL > 0 {
 		return nil, notSupported("AutoStop and TTL are cloud-only; stop or delete a local machine yourself.")
 	}
+	if cfg.Detach && !detachSupported() {
+		return nil, notSupported("Detach needs SMOLMACHINES_NO_JOB=1 on Windows: this process's job object would take a detached machine down with it.")
+	}
 	if err := localCall(ctx, "create", toNativeConfig(name, cfg), nil); err != nil {
 		return nil, err
 	}
@@ -892,7 +895,7 @@ func restoreLocal(ctx context.Context, checkpoint, name string, c ConnectOptions
 func localAvailability() LocalAvailability {
 	if !localPlatformSupported() {
 		return LocalAvailability{Code: "UNSUPPORTED_PLATFORM", Reason: fmt.Sprintf(
-			"No prebuilt local engine for %s/%s (supported: macOS Apple Silicon, Linux amd64/arm64 with glibc). "+
+			"No prebuilt local engine for %s/%s (supported: macOS Apple Silicon, Linux amd64/arm64 with glibc, Windows x64). "+
 				"The cloud target works on any platform.", runtime.GOOS, runtime.GOARCH)}
 	}
 	if err := loadNative(); err != nil {
@@ -902,9 +905,10 @@ func localAvailability() LocalAvailability {
 		Available bool   `json:"available"`
 		Code      string `json:"code"`
 		Reason    string `json:"reason"`
+		Cause     string `json:"cause"`
 	}
 	if err := callInto("check_host", nil, &host); err != nil {
 		return LocalAvailability{Code: CodeSmolvm, Reason: err.Error()}
 	}
-	return LocalAvailability{Available: host.Available, Code: host.Code, Reason: host.Reason}
+	return LocalAvailability{Available: host.Available, Code: host.Code, Reason: host.Reason, Cause: host.Cause}
 }

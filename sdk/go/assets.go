@@ -55,16 +55,30 @@ func platformSlug() (string, error) {
 		return "linux-x64", nil
 	case "linux/arm64":
 		return "linux-arm64", nil
+	case "windows/amd64":
+		return "windows-x64", nil
 	}
-	return "", fmt.Errorf("no local runtime for %s/%s (supported: macOS Apple Silicon, Linux amd64/arm64); "+
+	return "", fmt.Errorf("no local runtime for %s/%s (supported: macOS Apple Silicon, Linux amd64/arm64, Windows x64); "+
 		"the cloud target works on any platform", runtime.GOOS, runtime.GOARCH)
 }
 
 func libraryName() string {
-	if runtime.GOOS == "darwin" {
+	switch runtime.GOOS {
+	case "darwin":
 		return "libsmol_go.dylib"
+	case "windows":
+		return "smol_go.dll"
 	}
 	return "libsmol_go.so"
+}
+
+// helperName is the boot helper each machine runs in: the smolvm binary
+// renamed, as in the npm platform packages.
+func helperName() string {
+	if runtime.GOOS == "windows" {
+		return "smol-vmm.exe"
+	}
+	return "smol-vmm"
 }
 
 // resolveRuntimeAssets finds the runtime bundle: SMOLMACHINES_RUNTIME_DIR (an
@@ -85,7 +99,7 @@ func resolveRuntimeAssets() (*runtimeAssets, error) {
 	if _, err := os.Stat(a.library); err != nil {
 		return nil, fmt.Errorf("runtime bundle %s has no %s", dir, libraryName())
 	}
-	if helper := filepath.Join(dir, "smol-vmm"); fileExists(helper) {
+	if helper := filepath.Join(dir, helperName()); fileExists(helper) {
 		a.bootBinary = helper
 	}
 	// Shipped zstd-compressed; an older bundle has the plain tar.
@@ -111,6 +125,13 @@ func resolveRuntimeAssets() (*runtimeAssets, error) {
 		a.agentRootfsTar = ""
 	}
 	return a, nil
+}
+
+// envFlag reports whether a boolean environment switch is on: set to anything
+// but "" or "0".
+func envFlag(name string) bool {
+	v := os.Getenv(name)
+	return v != "" && v != "0"
 }
 
 func fileExists(path string) bool {
@@ -146,7 +167,7 @@ func ensureBundle() (string, error) {
 	if fileExists(filepath.Join(dir, libraryName())) {
 		return dir, nil
 	}
-	if v := os.Getenv("SMOLMACHINES_NO_DOWNLOAD"); v != "" && v != "0" {
+	if envFlag("SMOLMACHINES_NO_DOWNLOAD") {
 		return "", fmt.Errorf("no local runtime at %s and downloads are disabled (SMOLMACHINES_NO_DOWNLOAD); "+
 			"set SMOLMACHINES_RUNTIME_DIR to an unpacked %s bundle", dir, name)
 	}
@@ -255,7 +276,7 @@ func extract(data []byte, dir string) error {
 				return err
 			}
 		case tar.TypeSymlink:
-			if filepath.IsAbs(h.Linkname) || strings.Contains(h.Linkname, "..") {
+			if linkEscapes(h.Linkname) {
 				return fmt.Errorf("symlink %q -> %q escapes the bundle", h.Name, h.Linkname)
 			}
 			if err := os.Symlink(h.Linkname, target); err != nil {
@@ -263,4 +284,25 @@ func extract(data []byte, dir string) error {
 			}
 		}
 	}
+}
+
+// linkEscapes reports whether a bundle symlink could point outside the bundle:
+// any absolute target, in the tar's own (slash) form or in the host's, and
+// any target that climbs with "..". filepath.IsAbs alone is not enough: on
+// Windows it rejects neither "/etc/passwd" nor `\evil` (rooted on the current
+// drive) nor "C:evil" (relative to that drive's current directory), and
+// os.Symlink would create each of them.
+func linkEscapes(target string) bool {
+	if target == "" || filepath.IsAbs(target) || filepath.VolumeName(target) != "" {
+		return true
+	}
+	if strings.HasPrefix(target, "/") || strings.HasPrefix(target, `\`) || strings.Contains(target, ":") {
+		return true
+	}
+	for _, part := range strings.FieldsFunc(target, func(r rune) bool { return r == '/' || r == '\\' }) {
+		if part == ".." {
+			return true
+		}
+	}
+	return false
 }

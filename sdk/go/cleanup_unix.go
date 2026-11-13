@@ -23,3 +23,9 @@ func installSignalCleanup() {
 		_ = syscall.Kill(os.Getpid(), sig.(syscall.Signal))
 	}()
 }
+
+// armProcessReaper is a no-op on unix: the engine's boot helper watches its
+// parent and takes the machine down when this process dies.
+func armProcessReaper() {}
+
+func detachSupported() bool { return true }

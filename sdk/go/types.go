@@ -252,7 +252,10 @@ type MachineConfig struct {
 	// Name of the machine; generated when empty.
 	Name string
 	// Image is the base OCI image. Required on the cloud; optional locally,
-	// where Run(image, ...) per command is the alternative.
+	// where Run(image, ...) per command is the alternative. Locally it may also
+	// be the path of a `docker save` archive (.tar, .tar.gz, .tgz) or of an
+	// unpacked root filesystem directory: the host stages it and the machine
+	// boots it without network access, as the CLI's --image does.
 	Image string
 	// Mounts are host directories to mount. Local only.
 	Mounts []MountSpec

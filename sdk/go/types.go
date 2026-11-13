@@ -65,6 +65,16 @@ type ResourceSpec struct {
 	// example api.anthropic.com. Names are enforced at DNS inside the
 	// machine, so a host served from another domain (a CDN) needs its own entry.
 	AllowHosts []string
+	// BlockPrivate refuses egress to private, loopback, link-local and other
+	// non-public ranges (the host's LAN, the host itself, cloud metadata) even
+	// when an allowed hostname resolves into one, except for the CIDRs in
+	// AllowPrivate. Unlike the CLI's --block-private it does not turn
+	// networking on by itself: it only narrows what Network, AllowHosts or
+	// AllowCIDRs open. Local only.
+	BlockPrivate bool
+	// AllowPrivate lists private CIDRs BlockPrivate still lets through, like
+	// the CLI's --allow-private; setting it implies BlockPrivate. Local only.
+	AllowPrivate []string
 	// StorageGB is the storage disk size in GB (default 20).
 	StorageGB int
 	// OverlayGB is the overlay disk size in GB.

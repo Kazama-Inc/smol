@@ -299,6 +299,9 @@ struct ResourcesConfig {
     network: Option<bool>,
     allowed_cidrs: Option<Vec<String>>,
     allowed_hosts: Option<Vec<String>>,
+    /// Private-range egress floor: `Some(exceptions)` refuses private,
+    /// loopback and link-local destinations except those CIDRs.
+    block_private: Option<Vec<String>>,
     storage_gib: Option<u64>,
     overlay_gib: Option<u64>,
     gpu: Option<bool>,
@@ -495,6 +498,7 @@ fn vm_resources(r: &ResourcesConfig) -> Result<VmResources, CallError> {
         memory_mib: r.memory_mib.unwrap_or(DEFAULT_MICROVM_MEMORY_MIB),
         network: r.network.unwrap_or(false),
         allowed_cidrs: r.allowed_cidrs.clone(),
+        block_private: r.block_private.clone(),
         storage_gib: r.storage_gib,
         overlay_gib: r.overlay_gib,
         gpu: r.gpu.unwrap_or(false),

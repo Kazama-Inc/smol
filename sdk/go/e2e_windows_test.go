@@ -137,12 +137,20 @@ func TestE2EWindowsMachineDiesWithOwner(t *testing.T) {
 	if err := cmd.Process.Kill(); err != nil { // TerminateProcess: no handler runs
 		t.Fatal(err)
 	}
-	deadline := time.Now().Add(10 * time.Second)
+	// The job object kills the helper at once. Without it (SMOLMACHINES_NO_JOB)
+	// only the engine's parent watchdog is left, which first gives the guest
+	// up to 20 seconds to shut down cleanly.
+	limit := 10 * time.Second
+	if envFlag("SMOLMACHINES_NO_JOB") {
+		limit = 30 * time.Second
+	}
+	killed := time.Now()
 	for _, pid := range helpers {
-		if !waitExit(pid, time.Until(deadline)) {
-			t.Fatalf("smol-vmm.exe %d still running 10s after its owner was killed", pid)
+		if !waitExit(pid, limit-time.Since(killed)) {
+			t.Fatalf("smol-vmm.exe %d still running %s after its owner was killed", pid, limit)
 		}
 	}
+	t.Logf("boot helpers gone %s after the owner was killed", time.Since(killed).Round(10*time.Millisecond))
 	// The machine is gone with it; clean its record up.
 	if m, err := Connect(context.Background(), name, &ConnectOptions{Target: TargetLocal, NoSignalHandling: true}); err == nil {
 		_ = m.Delete(context.Background())

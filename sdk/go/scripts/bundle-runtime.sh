@@ -59,6 +59,9 @@ if [ "$PLAT" = windows-x64 ]; then
   fi
 fi
 
-tar -C "$STAGE" -czf "$OUT/$NAME.tar.gz" .
+# GNU tar (Git Bash, MSYS2) reads "D:/x.tar.gz" as host "D", file "/x.tar.gz".
+TAR=(tar)
+[ "$PLAT" = windows-x64 ] && TAR=(tar --force-local)
+"${TAR[@]}" -C "$STAGE" -czf "$OUT/$NAME.tar.gz" .
 echo "$OUT/$NAME.tar.gz ($(du -h "$OUT/$NAME.tar.gz" | cut -f1))"
-tar -tzf "$OUT/$NAME.tar.gz" | sed 's/^/  /'
+"${TAR[@]}" -tzf "$OUT/$NAME.tar.gz" | sed 's/^/  /'

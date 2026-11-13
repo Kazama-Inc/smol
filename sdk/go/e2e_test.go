@@ -14,8 +14,10 @@ import (
 
 // End-to-end tests against the real local engine. They boot microVMs, so they
 // run only with SMOL_E2E=1 on a host the engine supports (macOS Apple Silicon,
-// or Linux with /dev/kvm), with network access to pull the test image. Point
-// SMOLMACHINES_RUNTIME_DIR at an unpacked runtime bundle to test a local build.
+// Linux with /dev/kvm, or Windows with the Windows Hypervisor Platform), with
+// network access to pull the test image unless SMOL_E2E_IMAGE names a local
+// docker save archive to boot instead. Point SMOLMACHINES_RUNTIME_DIR at an
+// unpacked runtime bundle to test a local build.
 
 func requireE2E(t *testing.T) {
 	t.Helper()
@@ -29,6 +31,10 @@ func requireE2E(t *testing.T) {
 
 func newE2EMachine(t *testing.T, cfg MachineConfig) *Machine {
 	t.Helper()
+	if cfg.Image == "" {
+		// A local docker save archive lets the suite run offline.
+		cfg.Image = os.Getenv("SMOL_E2E_IMAGE")
+	}
 	ctx := context.Background()
 	start := time.Now()
 	m, err := Create(ctx, cfg, &ConnectOptions{Target: TargetLocal})

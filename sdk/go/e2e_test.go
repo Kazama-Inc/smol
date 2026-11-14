@@ -169,10 +169,13 @@ func TestE2ELifecycle(t *testing.T) {
 	}
 }
 
-// heartbeat rewrites a file every 200ms until killed, so a test can tell
-// whether the command is still running in the machine.
+// heartbeat bumps a counter in a file every 200ms until killed, so a test can
+// tell whether the command is still running in the machine. A counter, not a
+// timestamp: busybox date has no %N, so `date +%s%N` prints whole seconds and
+// beating's two reads 700ms apart saw the same value about a third of the
+// time.
 func heartbeat(file string) []string {
-	return []string{"sh", "-c", fmt.Sprintf("while true; do date +%%s%%N > /tmp/%s; echo tick; sleep 0.2; done", file)}
+	return []string{"sh", "-c", fmt.Sprintf("i=0; while true; do i=$((i+1)); echo $i > /tmp/%s; echo tick; sleep 0.2; done", file)}
 }
 
 func beating(t *testing.T, m *Machine, file string) bool {

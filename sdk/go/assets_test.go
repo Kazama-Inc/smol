@@ -133,7 +133,8 @@ func TestBundleDownloadIsVerifiedExtractedAndCached(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRuntimeAssets: %v", err)
 	}
-	if assets.library != filepath.Join(dir, libraryName()) || assets.bootBinary != helper || assets.libDir != dir {
+	if assets.library != filepath.Join(dir, libraryName()) || assets.bootBinary != helper || assets.libDir != dir ||
+		assets.templateDir != dir {
 		t.Fatalf("assets = %+v", assets)
 	}
 }

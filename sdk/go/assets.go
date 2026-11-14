@@ -38,6 +38,9 @@ type runtimeAssets struct {
 	libDir         string
 	agentRootfs    string
 	agentRootfsTar string
+	// templateDir is the bundle directory, where the engine looks for the
+	// pre-formatted storage-template.ext4 and overlay-template.ext4.
+	templateDir string
 }
 
 func localPlatformSupported() bool {
@@ -95,7 +98,7 @@ func resolveRuntimeAssets() (*runtimeAssets, error) {
 			return nil, err
 		}
 	}
-	a := &runtimeAssets{library: filepath.Join(dir, libraryName()), libDir: dir}
+	a := &runtimeAssets{library: filepath.Join(dir, libraryName()), libDir: dir, templateDir: dir}
 	if _, err := os.Stat(a.library); err != nil {
 		return nil, fmt.Errorf("runtime bundle %s has no %s", dir, libraryName())
 	}

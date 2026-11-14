@@ -2438,6 +2438,7 @@ dependencies = [
  "serde",
  "serde_json",
  "smolvm",
+ "smolvm-pack",
  "smolvm-protocol",
  "windows-sys 0.60.2",
 ]

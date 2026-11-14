@@ -267,6 +267,9 @@ struct RuntimeAssets {
     lib_dir: Option<String>,
     agent_rootfs: Option<String>,
     agent_rootfs_tar: Option<String>,
+    /// The runtime bundle directory, searched for the pre-formatted
+    /// `storage-template.ext4` / `overlay-template.ext4`.
+    template_dir: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -563,6 +566,7 @@ struct ResolvedAssets {
     lib_dir: Option<PathBuf>,
     agent_rootfs: Option<PathBuf>,
     agent_rootfs_tar: Option<PathBuf>,
+    template_dir: Option<PathBuf>,
 }
 
 fn resolve_asset(
@@ -598,6 +602,11 @@ fn resolve_asset(
 /// the Go package resolved. A value already in the environment wins, as in
 /// smol-node. Must run before the first machine op; repeating it with the
 /// same paths is a no-op, with different paths an error.
+///
+/// The bundle's disk templates are registered as a template root: without
+/// that the engine only looks in `~/.smolvm` and beside the host executable,
+/// finds nothing, and every machine starts from a blank `storage.raw` the
+/// guest has to format on first boot.
 fn configure_runtime_assets(a: RuntimeAssets) -> CallResult {
     static CONFIGURED: OnceLock<Mutex<Option<ResolvedAssets>>> = OnceLock::new();
     let agent_rootfs = resolve_asset("SMOLVM_AGENT_ROOTFS", a.agent_rootfs, true)?;
@@ -610,6 +619,12 @@ fn configure_runtime_assets(a: RuntimeAssets) -> CallResult {
             None
         },
         agent_rootfs,
+        // Optional: a bundle without templates still boots, just slower.
+        template_dir: a
+            .template_dir
+            .filter(|d| !d.is_empty())
+            .map(PathBuf::from)
+            .filter(|d| d.is_dir()),
     };
     let mut configured = CONFIGURED
         .get_or_init(|| Mutex::new(None))
@@ -632,6 +647,9 @@ fn configure_runtime_assets(a: RuntimeAssets) -> CallResult {
         if let Some(value) = value {
             std::env::set_var(key, value);
         }
+    }
+    if let Some(dir) = &resolved.template_dir {
+        smolvm_pack::assets::add_template_root(dir.clone());
     }
     *configured = Some(resolved);
     Ok(Value::Null)

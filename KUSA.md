@@ -27,6 +27,7 @@ Go SDK 的 Rust 部分按相对路径依赖引擎（`sdk/go/native/Cargo.toml` �
 | `feat/windows-escape-tests` | 越权集里挂载目录的部分（junction、文件名里的 `\` 和盘符、主机符号链接）作 Windows e2e。修复在 libkrun fork | 暂不提上游 |
 | `feat/windows-workspace-owner-test` | Windows e2e：非 root 工作负载能写 `/workspace`（uid 1000 直接写；机器用户 1001 走 id 映射）。修复在 smolvm `feat/windows-share-host-owner` 和 libkrun `feat/windows-virtiofs-host-owner` | 暂不提上游 |
 | `fix/e2e-heartbeat-counter` | e2e 的心跳改成计数器：busybox 的 `date` 不支持 `%N`，`date +%s%N` 只输出整秒，`beating()` 相隔 700 ms 的两次读数约三成相同，`TestE2EExecControl` 因此约三成误报「streamed command is not running before cancel」。与平台、`krun.dll` 编法无关 | 暂不提上游 |
+| `fix/go-sdk-runtime-templates` | 建机用上运行时包里的 `storage-template.ext4`、`overlay-template.ext4`：Go 把运行时目录作 `template_dir` 传给 `configure_runtime_assets`，原生层登记为引擎的模板查找目录（与 smol-node、smol-py 经 `set_bundle` 登记的效果相同）。原来引擎只在 `~/.smolvm` 和宿主可执行文件旁边找，每台机器都从空白磁盘开始、由 guest 当场格式化。Windows e2e `TestE2EWindowsDisksStartFromTemplates` 比对 ext4 UUID 验证。要配合 smolvm `fix/windows-disk-templates` 和 smolvm CI 的默认大小 `.zst` 模板：原来 512 MiB 的模板在 Windows 上要 guest 离线扩容，建机反而慢到 8～10 秒 | 暂不提上游 |
 
 ## 构建与测试（Windows）
 

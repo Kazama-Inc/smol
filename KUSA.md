@@ -25,6 +25,7 @@ Go SDK 的 Rust 部分按相对路径依赖引擎（`sdk/go/native/Cargo.toml` �
 | `feat/block-private` | `ResourceSpec.BlockPrivate` / `AllowPrivate`，接到引擎的 `block_private`。与 CLI 不同，不会自己打开网络 | 暂不提上游 |
 | `feat/windows-state-dir`（叠在 `feat/windows-go-sdk` 上） | `CheckLocal` 第 4 步：引擎状态目录的 AF_UNIX 自检，失败时 `Cause: state_dir_unusable`；README 写明 `SMOLVM_DATA_DIR`。依赖 smolvm 的 `feat/windows-state-dir` | 暂不提上游 |
 | `feat/windows-escape-tests` | 越权集里挂载目录的部分（junction、文件名里的 `\` 和盘符、主机符号链接）作 Windows e2e。修复在 libkrun fork | 暂不提上游 |
+| `feat/windows-workspace-owner-test` | Windows e2e：非 root 工作负载能写 `/workspace`（uid 1000 直接写；机器用户 1001 走 id 映射）。修复在 smolvm `feat/windows-share-host-owner` 和 libkrun `feat/windows-virtiofs-host-owner` | 暂不提上游 |
 | `fix/e2e-heartbeat-counter` | e2e 的心跳改成计数器：busybox 的 `date` 不支持 `%N`，`date +%s%N` 只输出整秒，`beating()` 相隔 700 ms 的两次读数约三成相同，`TestE2EExecControl` 因此约三成误报「streamed command is not running before cancel」。与平台、`krun.dll` 编法无关 | 暂不提上游 |
 
 ## 构建与测试（Windows）

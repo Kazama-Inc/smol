@@ -57,7 +57,8 @@ func openNative() error {
 		LibDir         string `json:"lib_dir,omitempty"`
 		AgentRootfs    string `json:"agent_rootfs,omitempty"`
 		AgentRootfsTar string `json:"agent_rootfs_tar,omitempty"`
-	}{assets.bootBinary, assets.libDir, assets.agentRootfs, assets.agentRootfsTar})
+		TemplateDir    string `json:"template_dir,omitempty"`
+	}{assets.bootBinary, assets.libDir, assets.agentRootfs, assets.agentRootfsTar, assets.templateDir})
 	return err
 }
 

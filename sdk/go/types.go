@@ -64,6 +64,8 @@ type ResourceSpec struct {
 	// AllowHosts scopes egress to these hostnames and their subdomains, for
 	// example api.anthropic.com. Names are enforced at DNS inside the
 	// machine, so a host served from another domain (a CDN) needs its own entry.
+	// Locally *.example.com allows only the subdomains and =example.com only
+	// that name, as in AllowList.
 	AllowHosts []string
 	// StorageGB is the storage disk size in GB (default 20).
 	StorageGB int
@@ -333,9 +335,10 @@ func AllowAll() NetworkPolicy { return NetworkPolicy{mode: "allow-all"} }
 // DenyAll blocks all outbound traffic.
 func DenyAll() NetworkPolicy { return NetworkPolicy{mode: "deny-all"} }
 
-// AllowList permits only these hosts and CIDR ranges. Host entries are exact
-// names (api.github.com) or subdomain wildcards (*.github.com, which does not
-// match github.com itself). An allow list naming nothing allows nothing.
+// AllowList permits only these hosts and CIDR ranges. Host entries mean what
+// ResourceSpec.AllowHosts entries mean: github.com allows the name and its
+// subdomains, *.github.com only the subdomains (not github.com itself), and
+// =github.com only that name. An allow list naming nothing allows nothing.
 func AllowList(hosts, cidrs []string) NetworkPolicy {
 	return NetworkPolicy{mode: "allow-list", hosts: hosts, cidrs: cidrs}
 }

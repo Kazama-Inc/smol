@@ -305,8 +305,8 @@ const session = await Machine.restoreCheckpoint('prepared.smolcheckpoint', 'sess
 });
 ```
 
-- `allowHosts` entries are exact names or `*.` subdomain wildcards, which don't
-  match the bare domain.
+- `allowHosts` entries allow the name and its subdomains, as at create;
+  `*.github.com` allows only the subdomains and `=github.com` only that name.
 - A stopped machine's policy can be replaced with
   `machine.setNetworkPolicy(policy)`.
 - The prepared machine must use `networkBackend: 'virtio-net'`, which enforces

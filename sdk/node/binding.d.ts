@@ -209,7 +209,10 @@ export interface EgressPolicyConfig {
   network: boolean
   /** Addresses the machine may reach; empty means no address restriction. */
   cidrs?: Array<string>
-  /** Host names (`api.github.com`, or `*.github.com` for subdomains only). */
+  /**
+   * Host names: `github.com` with its subdomains, `*.github.com` for
+   * subdomains only, `=github.com` for that name only.
+   */
   hosts?: Array<string>
 }
 /** Options for executing a command. */

@@ -369,8 +369,9 @@ export interface ListOptions {
 }
 
 /** An outbound network policy that can replace a stopped machine's own.
- *  `allowHosts` entries are exact host names (`api.github.com`) or subdomain
- *  wildcards (`*.github.com`, which does not match `github.com` itself). An
+ *  `allowHosts` entries mean what `Resources.allowHosts` entries mean:
+ *  `github.com` allows the name and its subdomains, `*.github.com` only the
+ *  subdomains (not `github.com` itself), and `=github.com` only that name. An
  *  allow list that names no hosts and no CIDRs allows nothing. */
 export type NetworkPolicy =
   | "allow-all"

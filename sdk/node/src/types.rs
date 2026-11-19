@@ -279,7 +279,8 @@ pub struct EgressPolicyConfig {
     pub network: bool,
     /// Addresses the machine may reach; empty means no address restriction.
     pub cidrs: Option<Vec<String>>,
-    /// Host names (`api.github.com`, or `*.github.com` for subdomains only).
+    /// Host names: `github.com` with its subdomains, `*.github.com` for
+    /// subdomains only, `=github.com` for that name only.
     pub hosts: Option<Vec<String>>,
 }
 

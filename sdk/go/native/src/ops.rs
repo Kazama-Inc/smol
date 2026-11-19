@@ -301,6 +301,8 @@ struct ResourcesConfig {
     memory_mib: Option<u32>,
     network: Option<bool>,
     allowed_cidrs: Option<Vec<String>>,
+    #[serde(default)]
+    host_loopback_ports: Option<Vec<u16>>,
     allowed_hosts: Option<Vec<String>>,
     /// Private-range egress floor: `Some(exceptions)` refuses private,
     /// loopback and link-local destinations except those CIDRs.
@@ -502,6 +504,7 @@ fn vm_resources(r: &ResourcesConfig) -> Result<VmResources, CallError> {
         network: r.network.unwrap_or(false),
         allowed_cidrs: r.allowed_cidrs.clone(),
         block_private: r.block_private.clone(),
+        host_loopback_ports: r.host_loopback_ports.clone().unwrap_or_default(),
         storage_gib: r.storage_gib,
         overlay_gib: r.overlay_gib,
         gpu: r.gpu.unwrap_or(false),

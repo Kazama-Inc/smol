@@ -61,6 +61,12 @@ type ResourceSpec struct {
 	Network *bool
 	// AllowCIDRs scopes egress to these CIDR ranges.
 	AllowCIDRs []string
+	// HostLoopbackPorts are ports on the host's loopback the machine may
+	// connect to, for a service the host runs for it alone. Inside the machine
+	// one is at GuestHostAddress:<port>. Only these ports open: the rest of the
+	// host's loopback stays closed, whatever the network policy. Uses the
+	// virtio-net backend. MachineConfig.Proxy adds its port here. Local only.
+	HostLoopbackPorts []uint16
 	// AllowHosts scopes egress to these hostnames and their subdomains, for
 	// example api.anthropic.com. Names are enforced at DNS inside the
 	// machine, so a host served from another domain (a CDN) needs its own entry.
@@ -295,6 +301,14 @@ type MachineConfig struct {
 	Branchable bool
 	// Env is the environment for the image workload launched at create.
 	Env map[string]string
+	// Proxy is the HTTP(S) proxy the machine's programs use, as the host
+	// sees it, for example http://127.0.0.1:7890. It becomes HTTP_PROXY and
+	// HTTPS_PROXY (and their lowercase forms), with
+	// NO_PROXY=localhost,127.0.0.1,::1, unless Env sets them. A proxy on the
+	// host's loopback is rewritten to GuestHostAddress and its port added to
+	// Resources.HostLoopbackPorts, so a proxy listening only on 127.0.0.1
+	// works, with BlockPrivate too. Local only.
+	Proxy string
 	// Workdir is the image workload's working directory.
 	Workdir string
 	// User runs the workload as this user: a name from the image or a

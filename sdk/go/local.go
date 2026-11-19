@@ -706,18 +706,20 @@ type nativeMount struct {
 }
 
 type nativeResources struct {
-	CPUs           int      `json:"cpus,omitempty"`
-	MemoryMiB      int      `json:"memory_mib,omitempty"`
-	Network        *bool    `json:"network,omitempty"`
-	AllowedCIDRs   []string `json:"allowed_cidrs,omitempty"`
-	AllowedHosts   []string `json:"allowed_hosts,omitempty"`
-	StorageGiB     int      `json:"storage_gib,omitempty"`
-	OverlayGiB     int      `json:"overlay_gib,omitempty"`
-	GPU            bool     `json:"gpu,omitempty"`
-	GPUVRAMMiB     int      `json:"gpu_vram_mib,omitempty"`
-	CUDA           bool     `json:"cuda,omitempty"`
-	NetworkBackend string   `json:"network_backend,omitempty"`
-	DiskDurability string   `json:"disk_durability,omitempty"`
+	CPUs         int      `json:"cpus,omitempty"`
+	MemoryMiB    int      `json:"memory_mib,omitempty"`
+	Network      *bool    `json:"network,omitempty"`
+	AllowedCIDRs []string `json:"allowed_cidrs,omitempty"`
+	AllowedHosts []string `json:"allowed_hosts,omitempty"`
+	// Ports on the host's loopback the guest may connect to.
+	HostLoopbackPorts []uint16 `json:"host_loopback_ports,omitempty"`
+	StorageGiB        int      `json:"storage_gib,omitempty"`
+	OverlayGiB        int      `json:"overlay_gib,omitempty"`
+	GPU               bool     `json:"gpu,omitempty"`
+	GPUVRAMMiB        int      `json:"gpu_vram_mib,omitempty"`
+	CUDA              bool     `json:"cuda,omitempty"`
+	NetworkBackend    string   `json:"network_backend,omitempty"`
+	DiskDurability    string   `json:"disk_durability,omitempty"`
 }
 
 type nativeMachineConfig struct {
@@ -755,15 +757,16 @@ func toNativeConfig(name string, cfg MachineConfig) nativeMachineConfig {
 			Network:   resolveNetwork(cfg),
 			// Either list enables scoped networking on its own; the engine
 			// enforces both (CIDRs directly, hostnames via its DNS filter).
-			AllowedCIDRs:   r.AllowCIDRs,
-			AllowedHosts:   r.AllowHosts,
-			StorageGiB:     r.StorageGB,
-			OverlayGiB:     r.OverlayGB,
-			GPU:            r.GPU,
-			GPUVRAMMiB:     r.GPUVRAMMiB,
-			CUDA:           r.CUDA,
-			NetworkBackend: string(r.NetworkBackend),
-			DiskDurability: string(r.DiskDurability),
+			AllowedCIDRs:      r.AllowCIDRs,
+			AllowedHosts:      r.AllowHosts,
+			HostLoopbackPorts: r.HostLoopbackPorts,
+			StorageGiB:        r.StorageGB,
+			OverlayGiB:        r.OverlayGB,
+			GPU:               r.GPU,
+			GPUVRAMMiB:        r.GPUVRAMMiB,
+			CUDA:              r.CUDA,
+			NetworkBackend:    string(r.NetworkBackend),
+			DiskDurability:    string(r.DiskDurability),
 		},
 		// A machine meant to outlive this process has to outlive its record too.
 		Persistent: cfg.Persistent || cfg.Detach,
@@ -788,6 +791,10 @@ func createLocal(ctx context.Context, cfg MachineConfig, c ConnectOptions) (tran
 	if cfg.AutoStop > 0 || cfg.TTL > 0 {
 		return nil, notSupported("AutoStop and TTL are cloud-only; stop or delete a local machine yourself.")
 	}
+	cfg, err := withProxy(cfg)
+	if err != nil {
+		return nil, err
+	}
 	if err := localCall(ctx, "create", toNativeConfig(name, cfg), nil); err != nil {
 		return nil, err
 	}
@@ -795,7 +802,6 @@ func createLocal(ctx context.Context, cfg MachineConfig, c ConnectOptions) (tran
 	// survive this process, and its branches inherit that.
 	owned := !cfg.Detach && !c.NoSignalHandling
 	t := newLocal(name, owned, interceptor, owned)
-	var err error
 	if cfg.Branchable {
 		// A branch source boots with memfd-backed guest RAM and a control
 		// socket so Branch can clone it live.

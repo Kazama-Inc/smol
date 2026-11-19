@@ -1484,6 +1484,9 @@ func createCloud(ctx context.Context, cfg MachineConfig, c ConnectOptions) (tran
 	if cfg.User != "" {
 		return nil, notSupported("User is local-only.")
 	}
+	if cfg.Proxy != "" || len(cfg.Resources.HostLoopbackPorts) > 0 {
+		return nil, notSupported("Proxy and HostLoopbackPorts are local-only.")
+	}
 	conn, err := cloudConnFor(c, "cloud target")
 	if err != nil {
 		return nil, err

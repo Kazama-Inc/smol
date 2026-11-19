@@ -298,6 +298,8 @@ struct ResourcesConfig {
     memory_mib: Option<u32>,
     network: Option<bool>,
     allowed_cidrs: Option<Vec<String>>,
+    #[serde(default)]
+    host_loopback_ports: Option<Vec<u16>>,
     allowed_hosts: Option<Vec<String>>,
     storage_gib: Option<u64>,
     overlay_gib: Option<u64>,
@@ -495,6 +497,7 @@ fn vm_resources(r: &ResourcesConfig) -> Result<VmResources, CallError> {
         memory_mib: r.memory_mib.unwrap_or(DEFAULT_MICROVM_MEMORY_MIB),
         network: r.network.unwrap_or(false),
         allowed_cidrs: r.allowed_cidrs.clone(),
+        host_loopback_ports: r.host_loopback_ports.clone().unwrap_or_default(),
         storage_gib: r.storage_gib,
         overlay_gib: r.overlay_gib,
         gpu: r.gpu.unwrap_or(false),
